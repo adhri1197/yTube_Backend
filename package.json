@@ -1,0 +1,15 @@
+{
+  "name": "ytube_backend",
+  "version": "1.0.0",
+  "description": "YouTube Backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "J.S",
+    "Backend"
+  ],
+  "author": "Anirudh Vardhan",
+  "license": "ISC"
+}
