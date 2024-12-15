@@ -14,10 +14,10 @@ const generateAccessandRefreshTokens = async(userId) =>{
         user.refreshToken = refreshToken
         await user.save({ validateBeforeSave: false })
 
-        return(accessToken, refreshToken)
+        return {accessToken, refreshToken}
         
     } catch (error) {
-        throw new ApiError(501, "Something went wroung while gentering Tokens ")
+        throw new ApiError(500, "Something went wrong while gentering Tokens ")
     }
 }
 
@@ -164,37 +164,48 @@ const logInUser = asyncHandler(async(req, res ) => {
 
 })
 
-const logOutUser = asyncHandler(async(req, res) => {
-    await User.findByIdAndUpdate(
-        req.user._id,
-        {
-            $set: {
-                refreshToken: undefined // this removes the field from document
+const logOutUser = asyncHandler(async (req, res) => {
+    try {
+        // Log the user details for debugging purposes
+        console.log(`Logging out user: ${req.user._id}, Email: ${req.user.email}`);
+        
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $unset: {
+                    refreshToken: 1 // This removes the field from the document
+                }
+            },
+            {
+                new: true
             }
-        },
-        {
-            new: true
-        }
-    )
+        );
 
-    const options = {
-        httpOnly: true,
-        //secure: true
+        const options = {
+            httpOnly: true,
+            secure: true,
+            sameSite: "None" // Added for cross-site cookie compatibility
+        };
+
+        return res
+            .status(200)
+            .clearCookie("accessToken", options)
+            .clearCookie("refreshToken", options)
+            .json(new ApiResponse(200, {}, "User logged out"));
+    } catch (error) {
+        console.error(`Error while logging out user: ${error.message}`);
+        return res.status(500).json(new ApiResponse(500, {}, "Failed to log out"));
     }
+});
 
-    return res
-    .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, {}, "User logged Out"))
-})
+
 
 const refreshAccessToken = asyncHandler(async(req, res) =>{
     const incomingRefreshToken =  req.cookies.refreshToken
      || req.body.refreshToken
     
     if(!incomingRefreshToken){
-        throw new ApiError(401,"unauthorized request ")
+        throw new ApiError(401,"Refresh token is required")
     }
 
    try {
@@ -215,8 +226,10 @@ const refreshAccessToken = asyncHandler(async(req, res) =>{
  
     const options ={
      httpOnly: true,
-     secure: true
+     secure:process.env.NODE_ENV ==="production"
     }
+
+    
     const {accessToken, newRefreshToken} =  await
     generateAccessandRefreshTokens(user._id)
  
@@ -253,6 +266,7 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
 
     user.password = newPassword
     await user.save({validateBeforeSave: false})
+    console.log(`Passworrd changed for user ID: ${user._id}`);
 
     return res
     .status(200)
@@ -425,17 +439,71 @@ const getUserChannelProfile = asyncHandler(async(req,res) => {
 }) 
 
 const getWatchHistory = asyncHandler(async(req,res)=>{
-    const user = await User.aggregate
+    const user = await User.aggregate([
+        {
+            $match:{
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup:{
+                from: "videos",
+                localField:"watchHistory",
+                foreignField: "_id",
+                as: "WatchHistory",
+                pipeline: [
+                    {
+                        $lookup:{
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline :[
+                                {
+                                    $project:{
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                      $addFields:{
+                        owner: {
+                            $first: "$owner"
+                        }
+                      }   
+                    }
+
+                ]
+            }
+        }
+    ])
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user[0].watchHistory,
+            "watch history fetched successfully"
+        )
+    )
 })
 
 
-export {registerUser,
+export {
+    registerUser,
     logInUser,
-     logOutUser,
+    logOutUser,
     refreshAccessToken,
-    getCurrentUser,
     changeCurrentPassword,
+    getCurrentUser,
     updateAccountDetails,
+    updateAvatar,
     updateCoverImage,
-    updateAvatar
+    getUserChannelProfile,
+    getWatchHistory
 } 
