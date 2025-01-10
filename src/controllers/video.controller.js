@@ -34,7 +34,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
     }));
 });
 
-const publishAVideo = asyncHandler(async (req, res) => {
+const publishVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body;
 
     if (!req.file) {
@@ -141,7 +141,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 export {
     getAllVideos,
-    publishAVideo,
+    publishVideo,
     getVideoById,
     updateVideo,
     deleteVideo,
